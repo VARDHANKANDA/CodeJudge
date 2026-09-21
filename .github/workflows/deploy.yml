@@ -1,0 +1,82 @@
+name: CodeJudge CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Backend Checks
+      - name: Install Backend Deps
+        run: |
+          cd backend
+          npm ci
+          npx prisma generate
+
+      - name: Backend Lint & TypeCheck
+        run: |
+          cd backend
+          npm run build
+
+      - name: Run Backend Tests
+        run: |
+          cd backend
+          npm run test
+
+      # Worker Checks
+      - name: Install Worker Deps & Build
+        run: |
+          cd worker
+          npm ci
+          npx prisma generate
+          npm run build
+
+      # Frontend Checks
+      - name: Install Frontend Deps
+        run: |
+          cd frontend
+          npm ci --legacy-peer-deps
+
+      - name: Frontend Build & Compilation Check
+        run: |
+          cd frontend
+          npm run build
+
+  build-docker-images:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: actions/setup-buildx-action@v3
+
+      - name: Build Sandbox compiler image
+        run: |
+          docker build -t codejudge-sandbox:latest -f worker/Dockerfile.sandbox worker/
+
+      - name: Build Backend container
+        run: |
+          docker build -t codejudge-api:latest backend/
+
+      - name: Build Worker container
+        run: |
+          docker build -t codejudge-worker:latest worker/
+
+      - name: Build Frontend container
+        run: |
+          docker build -t codejudge-frontend:latest frontend/
