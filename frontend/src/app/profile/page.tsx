@@ -165,8 +165,8 @@ export default function ProfilePage() {
                 {profile.submissions.map((sub) => (
                   <div key={sub.id} className="py-3 flex items-center justify-between text-xs">
                     <div className="space-y-1">
-                      <Link href={`/problems/${sub.problem.slug}`} className="font-semibold text-white hover:text-primary transition">
-                        {sub.problem.title}
+                      <Link href={`/problems/${sub.problem?.slug || '#'}`} className="font-semibold text-white hover:text-primary transition">
+                        {sub.problem?.title || 'Coding Challenge'}
                       </Link>
                       <div className="flex items-center space-x-2 text-[10px] text-gray-400">
                         <span className="uppercase font-mono">{sub.language}</span>

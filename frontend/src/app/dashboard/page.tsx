@@ -53,12 +53,13 @@ export default function Dashboard() {
   const acceptedSubmissions = submissions.filter((s) => s.verdict === 'ACCEPTED');
   
   // Unique solved problems list
-  const uniqueSolved = Array.from(new Set(acceptedSubmissions.map((s) => s.problem.id)));
+  const uniqueSolved = Array.from(new Set(acceptedSubmissions.map((s) => s.problem?.id).filter(Boolean)));
   const uniqueSolvedCount = uniqueSolved.length;
 
   // Language usage breakdown
   const languageCounts = submissions.reduce((acc: Record<string, number>, curr) => {
-    acc[curr.language] = (acc[curr.language] || 0) + 1;
+    const lang = curr.language || 'unknown';
+    acc[lang] = (acc[lang] || 0) + 1;
     return acc;
   }, {});
 
@@ -71,8 +72,10 @@ export default function Dashboard() {
   const difficultyCounts = acceptedSubmissions.reduce(
     (acc: { EASY: number; MEDIUM: number; HARD: number }, curr) => {
       // Fallback difficulty if missing in relation
-      const diff = (curr.problem.difficulty || 'EASY') as 'EASY' | 'MEDIUM' | 'HARD';
-      acc[diff] = (acc[diff] || 0) + 1;
+      const diff = (curr.problem?.difficulty || 'EASY') as 'EASY' | 'MEDIUM' | 'HARD';
+      if (acc[diff] !== undefined) {
+        acc[diff] = (acc[diff] || 0) + 1;
+      }
       return acc;
     },
     { EASY: 0, MEDIUM: 0, HARD: 0 },
@@ -231,7 +234,7 @@ export default function Dashboard() {
               <div key={sub.id} className="py-3 flex items-center justify-between text-xs sm:text-sm">
                 <div className="space-y-1">
                   <p className="font-semibold text-white">
-                    {sub.problem.title}
+                    {sub.problem?.title || 'Coding Challenge'}
                   </p>
                   <div className="flex items-center space-x-2 text-[10px] text-gray-400">
                     <span className="uppercase font-mono">{sub.language}</span>
