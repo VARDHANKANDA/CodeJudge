@@ -78,7 +78,10 @@ async function main() {
     },
   });
 
-  // Test Cases for Two Sum
+  // Test Cases for Two Sum (idempotent delete then recreate)
+  await prisma.testCase.deleteMany({
+    where: { problemId: twoSum.id },
+  });
   await prisma.testCase.createMany({
     data: [
       {
