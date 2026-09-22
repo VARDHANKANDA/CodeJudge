@@ -205,7 +205,7 @@ export default function ProblemWorkspace() {
           <div className="mt-8 pt-4 border-t border-border/40 space-y-4">
             <div className="flex items-center space-x-2 text-primary">
               <Sparkles className="h-4 w-4" />
-              <span className="text-xs font-semibold uppercase tracking-wider">Gemini Code Assistant</span>
+              <span className="text-xs font-semibold uppercase tracking-wider">AI Code Assistant</span>
             </div>
             <div className="flex flex-wrap gap-2">
               <button

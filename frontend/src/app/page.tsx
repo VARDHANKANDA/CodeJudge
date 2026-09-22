@@ -9,7 +9,7 @@ export default function Home() {
       <section className="text-center max-w-4xl mx-auto space-y-6">
         <div className="inline-flex items-center space-x-2 bg-primary/10 border border-primary/20 text-primary px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide uppercase mb-2 animate-pulse">
           <Zap className="h-3 w-3" />
-          <span>Supercharged by Gemini 2.5 AI</span>
+          <span>AI-Powered Online Judge</span>
         </div>
 
         <h1 className="text-5xl sm:text-7xl font-poppins font-extrabold tracking-tight leading-tight">
@@ -80,7 +80,7 @@ export default function Home() {
             </div>
             <h3 className="text-xl font-bold font-poppins">AI Code Architect</h3>
             <p className="text-gray-400 text-sm leading-relaxed">
-              Integrate Google Gemini to review your solutions. Get instant feedback on edge cases, O(N) complexity analytics, and structural cleanups.
+              Receive instant intelligent feedback on edge cases, algorithmic complexity analysis, and structural performance optimizations.
             </p>
           </div>
 
