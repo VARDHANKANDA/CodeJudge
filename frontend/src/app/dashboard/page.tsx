@@ -96,6 +96,38 @@ export default function Dashboard() {
       verdict: s.verdict === 'ACCEPTED' ? 1 : 0,
     }));
 
+  // Dynamic daily streak calculation from real submission history
+  const calculateStreak = () => {
+    if (submissions.length === 0) return 0;
+    const uniqueDays = Array.from(
+      new Set(
+        submissions.map((s) => new Date(s.createdAt).toISOString().split('T')[0])
+      )
+    ).sort().reverse();
+    
+    if (uniqueDays.length === 0) return 0;
+    const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    
+    if (uniqueDays[0] !== today && uniqueDays[0] !== yesterday) {
+      return 0;
+    }
+    
+    let streak = 1;
+    for (let i = 0; i < uniqueDays.length - 1; i++) {
+      const current = new Date(uniqueDays[i]).getTime();
+      const prev = new Date(uniqueDays[i + 1]).getTime();
+      const diffDays = Math.round((current - prev) / (1000 * 60 * 60 * 24));
+      if (diffDays === 1) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  };
+  const dailyStreak = calculateStreak();
+
   return (
     <div className="space-y-8 py-4">
       {/* Welcome header */}
@@ -143,7 +175,7 @@ export default function Dashboard() {
         <div className="glass-card p-6 flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Daily Streak</p>
-            <p className="text-2xl font-bold font-poppins text-white">5 Days</p>
+            <p className="text-2xl font-bold font-poppins text-white">{dailyStreak} {dailyStreak === 1 ? 'Day' : 'Days'}</p>
           </div>
           <div className="h-10 w-10 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center text-white">
             <Zap className="h-5 w-5" />

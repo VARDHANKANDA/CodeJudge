@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest } from '../../../lib/api';
 import Editor from '@monaco-editor/react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Play, Send, Sparkles, Loader2, RefreshCw, Terminal, Cpu, Clock, CheckCircle2, XCircle } from 'lucide-react';
 
 interface TestCase {
@@ -17,6 +17,8 @@ interface TestCase {
 export default function ProblemWorkspace() {
   const { slug } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const contestId = searchParams.get('contestId') || undefined;
 
   const [language, setLanguage] = useState('python');
   const [code, setCode] = useState('');
@@ -63,7 +65,7 @@ export default function ProblemWorkspace() {
 
   // Submit mutation
   const submitMutation = useMutation({
-    mutationFn: (body: { problemId: string; code: string; language: string }) =>
+    mutationFn: (body: { problemId: string; code: string; language: string; contestId?: string }) =>
       apiRequest('/submissions', {
         method: 'POST',
         body: JSON.stringify(body),
@@ -92,6 +94,7 @@ export default function ProblemWorkspace() {
       problemId: problem.id,
       code,
       language,
+      contestId,
     });
   };
 
