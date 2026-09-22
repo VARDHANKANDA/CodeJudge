@@ -31,9 +31,6 @@ export default function RootLayout({
                   <span className="font-poppins font-extrabold text-2xl tracking-tight gradient-text">
                     CodeJudge
                   </span>
-                  <span className="text-[10px] bg-primary/20 text-primary border border-primary/30 px-1.5 py-0.5 rounded font-mono font-bold uppercase">
-                    v1.0
-                  </span>
                 </Link>
 
                 <nav className="hidden md:flex items-center space-x-1">

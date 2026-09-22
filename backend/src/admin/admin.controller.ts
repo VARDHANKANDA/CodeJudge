@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Body, Query, UseGuards, Request } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -34,5 +34,30 @@ export class AdminController {
     const p = page ? parseInt(page, 10) : 1;
     const l = limit ? parseInt(limit, 10) : 50;
     return this.adminService.getAuditLogs(p, l);
+  }
+
+  @Get('users')
+  @ApiOperation({ summary: 'Get paginated list of registered users (Admin only)' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  async getUsers(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    const p = page ? parseInt(page, 10) : 1;
+    const l = limit ? parseInt(limit, 10) : 20;
+    return this.adminService.getUsers(p, l, search);
+  }
+
+  @Patch('users/:id/role')
+  @ApiOperation({ summary: 'Update a user role (Admin only)' })
+  async updateUserRole(
+    @Param('id') targetUserId: string,
+    @Body('role') role: Role,
+    @Request() req: any,
+  ) {
+    return this.adminService.updateUserRole(targetUserId, role, req.user.id);
   }
 }

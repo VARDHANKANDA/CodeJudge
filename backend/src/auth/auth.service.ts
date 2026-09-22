@@ -69,7 +69,7 @@ export class AuthService {
 
     await this.adminService.createAuditLog(user.id, 'USER_LOGIN');
 
-    return this.generateTokens(user.id, user.email, user.role);
+    return this.generateTokens(user);
   }
 
   async refreshTokens(refreshToken: string) {
@@ -86,7 +86,7 @@ export class AuthService {
     }
 
     // Generate new tokens
-    const tokens = await this.generateTokens(tokenRecord.user.id, tokenRecord.user.email, tokenRecord.user.role);
+    const tokens = await this.generateTokens(tokenRecord.user);
 
     // Delete old refresh token record
     await this.prisma.refreshToken.delete({ where: { id: tokenRecord.id } });
@@ -111,8 +111,17 @@ export class AuthService {
     }
   }
 
-  private async generateTokens(userId: string, email: string, role: string) {
-    const payload = { sub: userId, email, role };
+  private async generateTokens(user: {
+    id: string;
+    email: string;
+    role: string;
+    username?: string;
+    name?: string | null;
+    avatarUrl?: string | null;
+    points?: number;
+    rating?: number;
+  }) {
+    const payload = { sub: user.id, email: user.email, role: user.role };
 
     const accessTokenSecret = this.configService.get<string>('JWT_SECRET');
     const refreshTokenSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
@@ -137,7 +146,7 @@ export class AuthService {
     await this.prisma.refreshToken.create({
       data: {
         token: refreshTokenString,
-        userId,
+        userId: user.id,
         expiresAt,
       },
     });
@@ -146,9 +155,14 @@ export class AuthService {
       accessToken,
       refreshToken: refreshTokenString,
       user: {
-        id: userId,
-        email,
-        role,
+        id: user.id,
+        email: user.email,
+        username: user.username || user.email.split('@')[0],
+        name: user.name ?? undefined,
+        role: user.role,
+        avatarUrl: user.avatarUrl ?? undefined,
+        points: user.points ?? 0,
+        rating: user.rating ?? 1500,
       },
     };
   }

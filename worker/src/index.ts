@@ -7,10 +7,15 @@ dotenv.config();
 
 const prisma = new PrismaClient();
 
-const redisHost = process.env.REDIS_HOST || 'localhost';
-const redisPort = parseInt(process.env.REDIS_PORT || '6379', 10);
+const redisConnection = process.env.REDIS_URL
+  ? { url: process.env.REDIS_URL }
+  : {
+      host: process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.REDIS_PORT || '6379', 10),
+      password: process.env.REDIS_PASSWORD || undefined,
+    };
 
-console.log(`Worker starting. Listening to Redis queue on ${redisHost}:${redisPort}`);
+console.log(`Worker starting. Listening to Redis queue on ${process.env.REDIS_URL ? 'configured REDIS_URL' : `${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || '6379'}`}`);
 
 const worker = new Worker(
   'submission-queue',
@@ -116,10 +121,7 @@ const worker = new Worker(
     }
   },
   {
-    connection: {
-      host: redisHost,
-      port: redisPort,
-    },
+    connection: redisConnection as any,
     concurrency: 2, // Process up to 2 submissions in parallel
   },
 );

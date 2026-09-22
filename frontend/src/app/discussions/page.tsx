@@ -181,29 +181,39 @@ export default function DiscussionsPage() {
                       {new Date(thread.createdAt).toLocaleDateString()}
                     </span>
                   </div>
-                  <h3 className="text-lg font-bold font-poppins text-white hover:text-primary transition cursor-pointer">
-                    {thread.title}
-                  </h3>
+                  <Link href={`/discussions/${thread.id}`} className="block">
+                    <h3 className="text-lg font-bold font-poppins text-white hover:text-primary transition">
+                      {thread.title}
+                    </h3>
+                  </Link>
                 </div>
               </div>
 
-              <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed line-clamp-3 whitespace-pre-line">
-                {thread.content}
-              </p>
+              <Link href={`/discussions/${thread.id}`} className="block">
+                <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed line-clamp-3 whitespace-pre-line hover:text-gray-100 transition">
+                  {thread.content}
+                </p>
+              </Link>
 
               <div className="flex items-center space-x-6 text-xs text-gray-400 border-t border-border/20 pt-3">
                 <button
                   onClick={() => isAuthenticated && likeMutation.mutate(thread.id)}
-                  className="flex items-center space-x-1.5 hover:text-danger transition"
+                  disabled={!isAuthenticated}
+                  className={`flex items-center space-x-1.5 hover:text-danger transition ${
+                    !isAuthenticated ? 'opacity-60 cursor-not-allowed' : ''
+                  }`}
                 >
                   <Heart className="h-4 w-4" />
                   <span>{thread._count?.likes ?? 0} Likes</span>
                 </button>
 
-                <div className="flex items-center space-x-1.5">
+                <Link
+                  href={`/discussions/${thread.id}`}
+                  className="flex items-center space-x-1.5 hover:text-primary transition"
+                >
                   <MessageSquare className="h-4 w-4" />
                   <span>{thread._count?.comments ?? 0} Comments</span>
-                </div>
+                </Link>
               </div>
             </div>
           ))

@@ -79,6 +79,68 @@ export class AdminService {
     };
   }
 
+  async getUsers(page: number = 1, limit: number = 20, search?: string) {
+    const skip = (page - 1) * limit;
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { email: { contains: search, mode: 'insensitive' } },
+        { username: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          name: true,
+          role: true,
+          points: true,
+          rating: true,
+          isEmailVerified: true,
+          createdAt: true,
+          _count: {
+            select: {
+              submissions: true,
+              solvedProblems: true,
+            },
+          },
+        },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async updateUserRole(targetUserId: string, role: string, actorUserId: string) {
+    const user = await this.prisma.user.update({
+      where: { id: targetUserId },
+      data: { role: role as any },
+      select: { id: true, email: true, username: true, role: true },
+    });
+
+    await this.createAuditLog(actorUserId, 'ADMIN_USER_ROLE_UPDATED', undefined, undefined, {
+      targetUserId,
+      newRole: role,
+    });
+
+    return user;
+  }
+
   async createAuditLog(userId: string | null, action: string, ipAddress?: string, userAgent?: string, details?: any) {
     return this.prisma.auditLog.create({
       data: {
@@ -91,3 +153,4 @@ export class AdminService {
     });
   }
 }
+

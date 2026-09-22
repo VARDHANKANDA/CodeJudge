@@ -9,7 +9,12 @@ import { useRouter } from 'next/navigation';
 export default function NavbarClient() {
   const { user, clearAuth, isAuthenticated } = useAuthStore();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleLogout = () => {
     clearAuth();
@@ -17,7 +22,7 @@ export default function NavbarClient() {
     router.push('/auth/login');
   };
 
-  if (!isAuthenticated || !user) {
+  if (!mounted || !isAuthenticated || !user) {
     return (
       <div className="flex items-center space-x-3">
         <Link

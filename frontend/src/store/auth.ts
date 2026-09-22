@@ -22,15 +22,22 @@ interface AuthStore {
 }
 
 export const useAuthStore = create<AuthStore>((set) => {
-  // Safe SSR check for client-side storage recovery
-  let initialUser = null;
-  let initialAccess = null;
-  let initialRefresh = null;
+  // Safe initial storage recovery
+  let initialUser: UserState | null = null;
+  let initialAccess: string | null = null;
+  let initialRefresh: string | null = null;
 
   if (typeof window !== 'undefined') {
-    initialUser = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null;
-    initialAccess = localStorage.getItem('accessToken');
-    initialRefresh = localStorage.getItem('refreshToken');
+    try {
+      const storedUser = localStorage.getItem('user');
+      initialUser = storedUser ? JSON.parse(storedUser) : null;
+      initialAccess = localStorage.getItem('accessToken');
+      initialRefresh = localStorage.getItem('refreshToken');
+    } catch {
+      initialUser = null;
+      initialAccess = null;
+      initialRefresh = null;
+    }
   }
 
   return {
@@ -40,17 +47,25 @@ export const useAuthStore = create<AuthStore>((set) => {
     isAuthenticated: !!initialAccess,
     setAuth: (user, accessToken, refreshToken) => {
       if (typeof window !== 'undefined') {
-        localStorage.setItem('user', JSON.stringify(user));
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', refreshToken);
+        try {
+          localStorage.setItem('user', JSON.stringify(user));
+          localStorage.setItem('accessToken', accessToken);
+          localStorage.setItem('refreshToken', refreshToken);
+        } catch {
+          // Ignore storage quota or disabled storage errors
+        }
       }
       set({ user, accessToken, refreshToken, isAuthenticated: true });
     },
     clearAuth: () => {
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('user');
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
+        try {
+          localStorage.removeItem('user');
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+        } catch {
+          // Ignore
+        }
       }
       set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
     },
@@ -59,7 +74,11 @@ export const useAuthStore = create<AuthStore>((set) => {
         if (!state.user) return {};
         const updated = { ...state.user, ...userData };
         if (typeof window !== 'undefined') {
-          localStorage.setItem('user', JSON.stringify(updated));
+          try {
+            localStorage.setItem('user', JSON.stringify(updated));
+          } catch {
+            // Ignore
+          }
         }
         return { user: updated };
       });

@@ -10,8 +10,28 @@ async function bootstrap() {
   const expressApp = app.getHttpAdapter().getInstance();
   expressApp.set('trust proxy', 1);
 
+  const configuredOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000,https://code-judge-three.vercel.app')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: (origin, callback) => {
+      // Allow server-to-server, curl, Postman, Swagger or non-browser requests
+      if (!origin) return callback(null, true);
+
+      const isAllowed =
+        configuredOrigins.includes(origin) ||
+        configuredOrigins.includes('*') ||
+        origin.endsWith('.vercel.app') ||
+        origin.includes('localhost') ||
+        origin.includes('127.0.0.1');
+
+      if (isAllowed) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
     credentials: true,
   });
 
