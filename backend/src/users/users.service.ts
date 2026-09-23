@@ -5,9 +5,13 @@ import { PrismaService } from '../prisma/prisma.service';
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  async getLeaderboard(limit: number = 50) {
+  async getLeaderboard(limit: number = 50, type: 'rating' | 'points' = 'rating') {
+    const orderBy = type === 'points'
+      ? [{ points: 'desc' as const }, { rating: 'desc' as const }, { createdAt: 'asc' as const }]
+      : [{ rating: 'desc' as const }, { points: 'desc' as const }, { createdAt: 'asc' as const }];
+
     const users = await this.prisma.user.findMany({
-      orderBy: { points: 'desc' },
+      orderBy,
       select: {
         id: true,
         username: true,
@@ -15,6 +19,7 @@ export class UsersService {
         avatarUrl: true,
         points: true,
         rating: true,
+        createdAt: true,
         _count: {
           select: {
             solvedProblems: true,

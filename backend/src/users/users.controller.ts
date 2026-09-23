@@ -8,11 +8,15 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get('leaderboard')
-  @ApiOperation({ summary: 'Get global users leaderboard rankings ordered by score points' })
+  @ApiOperation({ summary: 'Get global users leaderboard rankings ordered by rating or score points' })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  async getLeaderboard(@Query('limit') limit?: string) {
+  @ApiQuery({ name: 'type', required: false, enum: ['rating', 'points'], description: 'Sort by competitive rating or total points' })
+  async getLeaderboard(
+    @Query('limit') limit?: string,
+    @Query('type') type?: 'rating' | 'points',
+  ) {
     const l = limit ? parseInt(limit, 10) : 50;
-    return this.usersService.getLeaderboard(l);
+    return this.usersService.getLeaderboard(l, type);
   }
 
   @Get('profile/:username')
