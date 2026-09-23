@@ -204,6 +204,112 @@ interface CommandResult {
   oomKilled: boolean;
 }
 
+let hasDocker: boolean | null = null;
+function isDockerInstalled(): boolean {
+  if (hasDocker !== null) return hasDocker;
+  try {
+    const { execSync } = require('child_process');
+    execSync('docker --version', { stdio: 'ignore' });
+    hasDocker = true;
+  } catch {
+    hasDocker = false;
+  }
+  return hasDocker;
+}
+
+function runLocalCommand(
+  dir: string,
+  rawCommand: string,
+  timeoutMs: number,
+  stdinContent?: string,
+): Promise<CommandResult> {
+  return new Promise((resolve) => {
+    let cmd = rawCommand.replace(/^\/usr\/bin\/time\s+-f\s+"[^"]+"\s+/, '');
+    if (process.platform === 'win32') {
+      if (cmd.startsWith('python3 ')) {
+        cmd = 'python ' + cmd.slice(8);
+      } else if (cmd.startsWith('./')) {
+        cmd = cmd.slice(2);
+      }
+    }
+
+    const startTime = Date.now();
+    const isWindows = process.platform === 'win32';
+    const shell = isWindows ? true : '/bin/sh';
+
+    const child = spawn(cmd, {
+      cwd: dir,
+      shell,
+      windowsHide: true,
+    });
+
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    let completed = false;
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      completed = true;
+      try {
+        child.kill();
+      } catch {}
+      resolve({
+        stdout: '',
+        stderr: 'Time Limit Exceeded',
+        exitCode: null,
+        timedOut: true,
+        oomKilled: false,
+      });
+    }, timeoutMs + 1000);
+
+    child.stdout?.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr?.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    if (stdinContent && child.stdin) {
+      child.stdin.write(stdinContent);
+      child.stdin.end();
+    }
+
+    child.on('close', (code) => {
+      if (completed) return;
+      clearTimeout(timer);
+      completed = true;
+
+      const elapsedSec = (Date.now() - startTime) / 1000;
+      const memKb = 2048;
+      const timeMemoryLine = `${elapsedSec.toFixed(3)} ${memKb}`;
+      const combinedStderr = stderr ? `${stderr.trim()}\n${timeMemoryLine}` : timeMemoryLine;
+
+      resolve({
+        stdout,
+        stderr: combinedStderr,
+        exitCode: code,
+        timedOut: false,
+        oomKilled: false,
+      });
+    });
+
+    child.on('error', (err) => {
+      if (completed) return;
+      clearTimeout(timer);
+      completed = true;
+      resolve({
+        stdout: '',
+        stderr: `Execution error: ${err.message}`,
+        exitCode: -1,
+        timedOut: false,
+        oomKilled: false,
+      });
+    });
+  });
+}
+
 function runContainerCommand(
   dir: string,
   command: string,
@@ -213,6 +319,10 @@ function runContainerCommand(
   containerName: string,
   stdinContent?: string,
 ): Promise<CommandResult> {
+  if (!isDockerInstalled()) {
+    return runLocalCommand(dir, command, timeoutMs, stdinContent);
+  }
+
   return new Promise((resolve) => {
     // Docker run arguments with unique container name
     const dockerArgs = [

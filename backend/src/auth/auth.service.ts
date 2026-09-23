@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AdminService } from '../admin/admin.service';
@@ -85,11 +86,11 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token is invalid or has expired');
     }
 
+    // Delete old refresh token record first
+    await this.prisma.refreshToken.delete({ where: { id: tokenRecord.id } });
+
     // Generate new tokens
     const tokens = await this.generateTokens(tokenRecord.user);
-
-    // Delete old refresh token record
-    await this.prisma.refreshToken.delete({ where: { id: tokenRecord.id } });
 
     return tokens;
   }
@@ -101,10 +102,10 @@ export class AuthService {
       });
       if (tokenRecord) {
         await this.adminService.createAuditLog(tokenRecord.userId, 'USER_LOGOUT');
+        await this.prisma.refreshToken.delete({
+          where: { id: tokenRecord.id },
+        });
       }
-      await this.prisma.refreshToken.delete({
-        where: { token: refreshToken },
-      });
       return { success: true, message: 'Logged out successfully' };
     } catch (e) {
       throw new BadRequestException('Invalid refresh token');
@@ -135,10 +136,13 @@ export class AuthService {
       expiresIn: '15m',
     });
 
-    const refreshTokenString = this.jwtService.sign(payload, {
-      secret: refreshTokenSecret,
-      expiresIn: '7d',
-    });
+    const refreshTokenString = this.jwtService.sign(
+      { ...payload, jti: crypto.randomUUID() },
+      {
+        secret: refreshTokenSecret,
+        expiresIn: '7d',
+      },
+    );
 
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);

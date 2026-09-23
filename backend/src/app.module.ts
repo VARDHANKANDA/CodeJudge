@@ -13,6 +13,7 @@ import { AIModule } from './ai/ai.module';
 import { AdminModule } from './admin/admin.module';
 import { UsersModule } from './users/users.module';
 import { SettingsModule } from './settings/settings.module';
+import { RoadmapModule } from './roadmap/roadmap.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { SettingsModule } from './settings/settings.module';
     AdminModule,
     UsersModule,
     SettingsModule,
+    RoadmapModule,
   ],
   providers: [
     {

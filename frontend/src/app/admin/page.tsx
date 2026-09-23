@@ -17,6 +17,11 @@ import {
   CheckCircle,
   Shield,
   Activity,
+  Play,
+  Check,
+  XCircle,
+  ExternalLink,
+  RefreshCw,
 } from 'lucide-react';
 
 interface SystemHealth {
@@ -66,17 +71,30 @@ export default function AdminDashboard() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'logs'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'problems' | 'users' | 'logs'>('overview');
   const [logsPage, setLogsPage] = useState(1);
   const [usersPage, setUsersPage] = useState(1);
   const [userSearch, setUserSearch] = useState('');
+  const [problemSearch, setProblemSearch] = useState('');
+  const [problemDifficultyFilter, setProblemDifficultyFilter] = useState('ALL');
+  const [problemStatusFilter, setProblemStatusFilter] = useState('ALL');
   const [roleMessage, setRoleMessage] = useState<string | null>(null);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  const [verifyAllLoading, setVerifyAllLoading] = useState(false);
+  const [verifyResults, setVerifyResults] = useState<any | null>(null);
 
   // Fetch admin metrics
   const { data: metrics, isLoading: metricsLoading } = useQuery({
     queryKey: ['admin-metrics'],
     queryFn: () => apiRequest('/admin/metrics'),
     enabled: user?.role === 'ADMIN',
+  });
+
+  // Fetch all problems for Admin Quality tab
+  const { data: problemsData, isLoading: problemsLoading, refetch: refetchProblems } = useQuery({
+    queryKey: ['admin-problems'],
+    queryFn: () => apiRequest('/problems?limit=100'),
+    enabled: user?.role === 'ADMIN' && activeTab === 'problems',
   });
 
   // Fetch system health metrics
@@ -107,6 +125,52 @@ export default function AdminDashboard() {
     enabled: user?.role === 'ADMIN' && activeTab === 'users',
   });
 
+  // Verify single problem
+  const handleVerifyProblem = async (id: string) => {
+    try {
+      setVerifyingId(id);
+      const res = await apiRequest(`/problems/${id}/verify`, { method: 'POST' });
+      setRoleMessage(`Verification result for ${res.problemTitle || id}: ${res.passed ? 'PASSED ✅' : 'FAILED ❌'}`);
+      setTimeout(() => setRoleMessage(null), 4000);
+      refetchProblems();
+    } catch (err: any) {
+      setRoleMessage(`Verification failed: ${err.message}`);
+      setTimeout(() => setRoleMessage(null), 4000);
+    } finally {
+      setVerifyingId(null);
+    }
+  };
+
+  // Verify all problems
+  const handleVerifyAll = async () => {
+    try {
+      setVerifyAllLoading(true);
+      const res = await apiRequest('/problems/verify-all', { method: 'POST' });
+      setVerifyResults(res);
+      setRoleMessage(`Verified all problems: ${res.passedCount}/${res.total} Passed (${res.failedCount} Failed)`);
+      setTimeout(() => setRoleMessage(null), 5000);
+      refetchProblems();
+    } catch (err: any) {
+      setRoleMessage(`Verification suite failed: ${err.message}`);
+      setTimeout(() => setRoleMessage(null), 4000);
+    } finally {
+      setVerifyAllLoading(false);
+    }
+  };
+
+  // Toggle publish
+  const handleTogglePublish = async (id: string) => {
+    try {
+      const res = await apiRequest(`/problems/${id}/toggle-publish`, { method: 'PATCH' });
+      setRoleMessage(`Updated "${res.title}" status to ${res.qualityStatus}`);
+      setTimeout(() => setRoleMessage(null), 3000);
+      refetchProblems();
+    } catch (err: any) {
+      setRoleMessage(`Status change failed: ${err.message}`);
+      setTimeout(() => setRoleMessage(null), 4000);
+    }
+  };
+
   // Update role mutation
   const updateRoleMutation = useMutation({
     mutationFn: ({ userId, role }: { userId: string; role: string }) =>
@@ -114,7 +178,7 @@ export default function AdminDashboard() {
         method: 'PATCH',
         body: JSON.stringify({ role }),
       }),
-    onSuccess: (updated) => {
+    onSuccess: (updated: any) => {
       setRoleMessage(`Successfully updated role for ${updated.username} to ${updated.role}`);
       setTimeout(() => setRoleMessage(null), 3000);
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
@@ -125,6 +189,19 @@ export default function AdminDashboard() {
       setTimeout(() => setRoleMessage(null), 4000);
     },
   });
+
+  const [isMounted, setIsMounted] = React.useState(false);
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (user?.role !== 'ADMIN') {
     return (
@@ -154,7 +231,7 @@ export default function AdminDashboard() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-poppins font-extrabold text-white">Admin Management Portal</h1>
-          <p className="text-gray-400 text-sm">Monitor microservices metrics, server execution queues, and platform users</p>
+          <p className="text-gray-400 text-sm">Monitor microservices metrics, problem quality verifiers, and user access controls</p>
         </div>
       </div>
 
@@ -198,6 +275,15 @@ export default function AdminDashboard() {
         >
           <Activity className="h-4 w-4" />
           <span>System & Verdicts</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('problems')}
+          className={`px-4 py-2.5 text-sm font-semibold transition border-b-2 flex items-center space-x-2 ${
+            activeTab === 'problems' ? 'border-primary text-primary' : 'border-transparent text-gray-400 hover:text-white'
+          }`}
+        >
+          <Database className="h-4 w-4" />
+          <span>Problem Quality & Verifier</span>
         </button>
         <button
           onClick={() => setActiveTab('users')}
@@ -282,7 +368,233 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Tab 2: User Management */}
+      {/* Tab 2: Problem Quality & Verification Pipeline */}
+      {activeTab === 'problems' && (
+        <section className="glass-panel p-6 rounded-2xl border border-border/40 space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h3 className="text-base font-semibold font-poppins text-white flex items-center space-x-2">
+                <Database className="h-5 w-5 text-primary" />
+                <span>Problem Quality Assurance & Verification Suite</span>
+              </h3>
+              <p className="text-xs text-gray-400 mt-1">
+                Automated regression testing against canonical reference solutions and all hidden boundary test cases.
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={handleVerifyAll}
+                disabled={verifyAllLoading}
+                className="px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center space-x-2 transition shadow-lg shadow-primary/20 cursor-pointer"
+              >
+                {verifyAllLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Verifying All Problems...</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-3.5 w-3.5 fill-current" />
+                    <span>Run Verification Suite</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Quality Summary Metric Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-card/40 border border-border/30 p-3.5 rounded-xl">
+              <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Total Repository</span>
+              <p className="text-lg font-bold text-white mt-0.5">{metrics?.problemQuality?.total ?? metrics?.problems ?? 0} Problems</p>
+            </div>
+            <div className="bg-success/5 border border-success/20 p-3.5 rounded-xl">
+              <span className="text-[10px] uppercase font-bold text-success tracking-wider">Verified Solutions</span>
+              <p className="text-lg font-bold text-success mt-0.5">{metrics?.problemQuality?.verified ?? metrics?.problems ?? 0} Verified</p>
+            </div>
+            <div className="bg-accent/5 border border-accent/20 p-3.5 rounded-xl">
+              <span className="text-[10px] uppercase font-bold text-accent tracking-wider">Total Test Cases</span>
+              <p className="text-lg font-bold text-accent mt-0.5">{metrics?.problemQuality?.totalTestCases ?? metrics?.totalTestCases ?? 0} Tests</p>
+            </div>
+            <div className="bg-warning/5 border border-warning/20 p-3.5 rounded-xl">
+              <span className="text-[10px] uppercase font-bold text-warning tracking-wider">Failed / Draft</span>
+              <p className="text-lg font-bold text-warning mt-0.5">{metrics?.problemQuality?.failed ?? 0} Issues</p>
+            </div>
+          </div>
+
+          {/* Filter Toolbar */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-1">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Filter by problem title or slug..."
+                value={problemSearch}
+                onChange={(e) => setProblemSearch(e.target.value)}
+                className="w-full bg-background border border-border/60 pl-9 pr-3 py-1.5 rounded-lg text-xs text-white focus:outline-none focus:border-primary/80"
+              />
+            </div>
+            <select
+              value={problemDifficultyFilter}
+              onChange={(e) => setProblemDifficultyFilter(e.target.value)}
+              className="bg-background border border-border/60 px-3 py-1.5 rounded-lg text-xs text-white focus:outline-none focus:border-primary"
+            >
+              <option value="ALL">All Difficulties</option>
+              <option value="EASY">Easy</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="HARD">Hard</option>
+            </select>
+            <select
+              value={problemStatusFilter}
+              onChange={(e) => setProblemStatusFilter(e.target.value)}
+              className="bg-background border border-border/60 px-3 py-1.5 rounded-lg text-xs text-white focus:outline-none focus:border-primary"
+            >
+              <option value="ALL">All Quality Statuses</option>
+              <option value="PUBLISHED">Published</option>
+              <option value="VERIFIED">Verified Only</option>
+              <option value="DRAFT">Draft</option>
+            </select>
+          </div>
+
+          {verifyResults && (
+            <div className="bg-card/60 border border-border/40 p-4 rounded-xl space-y-3">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="text-white">Verification Summary Report:</span>
+                <span className="font-mono text-success">
+                  {verifyResults.passedCount} Passed / {verifyResults.failedCount} Failed (Total: {verifyResults.total})
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                {verifyResults.results?.map((r: any, idx: number) => (
+                  <div
+                    key={idx}
+                    className={`p-2.5 rounded border text-xs flex justify-between items-center ${
+                      r.passed
+                        ? 'bg-success/5 border-success/20 text-success'
+                        : 'bg-danger/5 border-danger/20 text-danger'
+                    }`}
+                  >
+                    <span className="font-medium text-white truncate max-w-[200px]">{r.problemTitle}</span>
+                    <span className="font-mono text-[11px] font-bold">
+                      {r.passed ? `✅ PASS (${r.timeMs || 0}ms)` : `❌ FAIL: ${r.reason || 'Test Failed'}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {problemsLoading ? (
+            <div className="py-12 flex justify-center items-center space-x-2 text-xs text-gray-400">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <span>Loading canonical problem repository...</span>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-border/40">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-border/40 bg-card/25 text-gray-400 font-semibold uppercase">
+                    <th className="px-4 py-3">Problem Title</th>
+                    <th className="px-4 py-3">Difficulty</th>
+                    <th className="px-4 py-3 text-center">Testcases</th>
+                    <th className="px-4 py-3 text-center">Quality Status</th>
+                    <th className="px-4 py-3 text-center">Verified</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/20 text-gray-300">
+                  {(Array.isArray(problemsData) ? problemsData : problemsData?.items || [])
+                    .filter((p: any) => {
+                      if (problemSearch && !p.title.toLowerCase().includes(problemSearch.toLowerCase()) && !p.slug.toLowerCase().includes(problemSearch.toLowerCase())) {
+                        return false;
+                      }
+                      if (problemDifficultyFilter !== 'ALL' && p.difficulty !== problemDifficultyFilter) {
+                        return false;
+                      }
+                      if (problemStatusFilter !== 'ALL' && p.qualityStatus !== problemStatusFilter) {
+                        return false;
+                      }
+                      return true;
+                    })
+                    .map((p: any) => (
+                    <tr key={p.id} className="hover:bg-white/5 transition">
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-white">{p.title}</div>
+                        <div className="text-[10px] text-gray-400 font-mono">/{p.slug}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            p.difficulty === 'EASY'
+                              ? 'text-success bg-success/10'
+                              : p.difficulty === 'MEDIUM'
+                              ? 'text-warning bg-warning/10'
+                              : 'text-danger bg-danger/10'
+                          }`}
+                        >
+                          {p.difficulty}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center font-mono text-gray-300">
+                        {p._count?.testCases ?? 0}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                            p.qualityStatus === 'PUBLISHED'
+                              ? 'text-primary bg-primary/10 border-primary/30'
+                              : p.qualityStatus === 'VERIFIED'
+                              ? 'text-accent bg-accent/10 border-accent/30'
+                              : 'text-warning bg-warning/10 border-warning/30'
+                          }`}
+                        >
+                          {p.qualityStatus || 'DRAFT'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {p.isVerified ? (
+                          <span className="inline-flex items-center space-x-1 text-success font-semibold text-[11px]">
+                            <Check className="h-3.5 w-3.5" />
+                            <span>VERIFIED</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center space-x-1 text-warning font-semibold text-[11px]">
+                            <XCircle className="h-3.5 w-3.5" />
+                            <span>UNVERIFIED</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right space-x-2">
+                        <button
+                          onClick={() => handleVerifyProblem(p.id)}
+                          disabled={verifyingId === p.id}
+                          className="px-2.5 py-1 bg-card hover:bg-white/10 border border-border/40 rounded text-xs text-gray-300 hover:text-white transition disabled:opacity-40 cursor-pointer inline-flex items-center space-x-1"
+                        >
+                          {verifyingId === p.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Play className="h-3 w-3 text-accent" />
+                          )}
+                          <span>Verify</span>
+                        </button>
+                        <button
+                          onClick={() => handleTogglePublish(p.id)}
+                          className="px-2.5 py-1 bg-card hover:bg-white/10 border border-border/40 rounded text-xs text-gray-300 hover:text-white transition cursor-pointer"
+                        >
+                          {p.qualityStatus === 'PUBLISHED' ? 'Unpublish' : 'Publish'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Tab 3: User Management */}
       {activeTab === 'users' && (
         <section className="glass-panel p-6 rounded-2xl border border-border/40 space-y-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

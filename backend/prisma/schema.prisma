@@ -86,24 +86,40 @@ model RefreshToken {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+enum QualityStatus {
+  DRAFT
+  REVIEW
+  VERIFIED
+  PUBLISHED
+}
+
 model Problem {
-  id             String           @id @default(uuid())
-  title          String
-  slug           String           @unique
-  description    String           // Rich markdown
-  difficulty     Difficulty       @default(EASY)
-  timeLimit      Int              @default(2000) // in ms
-  memoryLimit    Int              @default(256)  // in MB
-  constraints    String           // Markdown text
-  codeTemplates  Json             // Key-value for languages
-  sampleInput    String
-  sampleOutput   String
-  isPremium      Boolean          @default(false)
-  points         Int              @default(100)
-  isPublished    Boolean          @default(false)
-  authorId       String
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id                 String           @id @default(uuid())
+  title              String
+  slug               String           @unique
+  description        String           // Rich markdown
+  difficulty         Difficulty       @default(EASY)
+  qualityStatus      QualityStatus    @default(PUBLISHED)
+  isVerified         Boolean          @default(true)
+  timeLimit          Int              @default(2000) // in ms
+  memoryLimit        Int              @default(256)  // in MB
+  constraints        String           // Markdown text
+  inputFormat        String?
+  outputFormat       String?
+  hints              Json?            // Array of strings
+  supportedLanguages Json?            // Array of supported languages
+  codeTemplates      Json             // Key-value for languages
+  referenceSolutions Json?            // Canonical reference solutions
+  sampleInput        String
+  sampleOutput       String
+  source             String?
+  license            String?
+  isPremium          Boolean          @default(false)
+  points             Int              @default(100)
+  isPublished        Boolean          @default(true)
+  authorId           String
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   author         User             @relation("ProblemAuthor", fields: [authorId], references: [id])
   testCases      TestCase[]
@@ -318,11 +334,16 @@ model UserAchievement {
 }
 
 model Editorial {
-  id        String   @id @default(uuid())
-  problemId String   @unique
-  content   String
-  authorId  String
-  createdAt DateTime @default(now())
+  id              String   @id @default(uuid())
+  problemId       String   @unique
+  approach        String?  // Markdown summary of key algorithmic approach
+  algorithm       String?  // Step-by-step algorithmic breakdown
+  timeComplexity  String?  // e.g. "O(N)"
+  spaceComplexity String?  // e.g. "O(1)"
+  content         String   // Full rich editorial markdown
+  referenceCode   Json?    // Multi-language canonical solutions
+  authorId        String
+  createdAt       DateTime @default(now())
 
   problem   Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
 }

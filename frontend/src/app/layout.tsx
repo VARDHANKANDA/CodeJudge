@@ -37,6 +37,12 @@ export default function RootLayout({
                   <Link href="/problems" className="px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-md transition font-medium">
                     Problems
                   </Link>
+                  <Link href="/roadmap" className="px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-md transition font-medium">
+                    Roadmap
+                  </Link>
+                  <Link href="/sheets" className="px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-md transition font-medium">
+                    Sheets
+                  </Link>
                   <Link href="/contests" className="px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-md transition font-medium">
                     Contests
                   </Link>

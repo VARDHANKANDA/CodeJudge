@@ -5,13 +5,40 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest } from '../../../lib/api';
 import Editor from '@monaco-editor/react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Play, Send, Sparkles, Loader2, RefreshCw, Terminal, Cpu, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import {
+  Play,
+  Send,
+  Sparkles,
+  Loader2,
+  RefreshCw,
+  Terminal,
+  Cpu,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  BookOpen,
+  HelpCircle,
+  MessageSquare,
+  FileText,
+  ChevronDown,
+  ChevronRight,
+  ShieldCheck,
+} from 'lucide-react';
 
 interface TestCase {
   id: string;
   input: string;
   expectedOutput: string;
   isHidden: boolean;
+}
+
+interface Editorial {
+  approach?: string;
+  algorithm?: string;
+  timeComplexity?: string;
+  spaceComplexity?: string;
+  content: string;
+  referenceCode?: Record<string, string>;
 }
 
 export default function ProblemWorkspace() {
@@ -24,11 +51,8 @@ export default function ProblemWorkspace() {
   const [code, setCode] = useState('');
   const [theme, setTheme] = useState('vs-dark');
   const [fontSize, setFontSize] = useState(14);
-  const [activeTab, setActiveTab] = useState<'description' | 'discussion'>('description');
-  
-  // AI assistant states
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiFeedback, setAiFeedback] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'description' | 'hints' | 'editorial' | 'discussion'>('description');
+  const [revealedHints, setRevealedHints] = useState<Record<number, boolean>>({});
 
   // Execution states
   const [execStatus, setExecStatus] = useState<string | null>(null);
@@ -47,18 +71,18 @@ export default function ProblemWorkspace() {
   // Update editor templates on language or problem change
   useEffect(() => {
     if (problem) {
-      const templates = problem.codeTemplates as Record<string, string>;
+      const templates = (problem.codeTemplates || {}) as Record<string, string>;
       if (templates && templates[language]) {
         setCode(templates[language]);
       } else {
-        // Defaults
         const defaults: Record<string, string> = {
-          python: `def solve():\n    # Write code here\n    pass\n`,
-          javascript: `function solve() {\n    // Write code here\n}\n`,
-          cpp: `#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write code here\n    return 0;\n}\n`,
-          java: `public class Solution {\n    public static void main(String[] args) {\n        // Write code here\n    }\n}\n`,
+          python: `import sys\n\ndef solve():\n    # Write your solution here\n    pass\n\nsolve()\n`,
+          javascript: `const fs = require('fs');\n\nfunction solve() {\n    // Write your solution here\n}\n\nsolve();\n`,
+          typescript: `function solve() {\n    // Write your solution here\n}\n\nsolve();\n`,
+          cpp: `#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write your solution here\n    return 0;\n}\n`,
+          java: `import java.util.*;\nimport java.io.*;\n\npublic class Solution {\n    public static void main(String[] args) throws Exception {\n        // Write your solution here\n    }\n}\n`,
         };
-        setCode(defaults[language] || '// Write code here\n');
+        setCode(defaults[language] || '// Write solution here\n');
       }
     }
   }, [problem, language]);
@@ -71,7 +95,6 @@ export default function ProblemWorkspace() {
         body: JSON.stringify(body),
       }),
     onSuccess: (data) => {
-      // Start polling status
       pollSubmissionStatus(data.id);
     },
     onError: (err: any) => {
@@ -99,11 +122,11 @@ export default function ProblemWorkspace() {
   };
 
   const pollSubmissionStatus = (id: string) => {
-    setExecStatus('Executing solution...');
+    setExecStatus('Executing in sandbox...');
     const interval = setInterval(async () => {
       try {
         const sub = await apiRequest(`/submissions/${id}`);
-        if (sub.verdict !== 'QUEUED' && sub.verdict !== 'RUNNING') {
+        if (sub.verdict !== 'QUEUED' && sub.verdict !== 'RUNNING' && sub.verdict !== 'PENDING') {
           clearInterval(interval);
           setExecStatus(null);
           setExecVerdict(sub.verdict);
@@ -117,24 +140,14 @@ export default function ProblemWorkspace() {
         setExecVerdict('ERROR');
         setExecError(err.message || 'Error tracking submission');
       }
-    }, 1500);
+    }, 1200);
   };
 
-  // AI mutation
-  const handleAICall = async (endpoint: 'review' | 'complexity' | 'optimize') => {
-    setAiLoading(true);
-    setAiFeedback(null);
-    try {
-      const response = await apiRequest(`/ai/${endpoint}`, {
-        method: 'POST',
-        body: JSON.stringify({ code, language }),
-      });
-      setAiFeedback(response.feedback);
-    } catch (err: any) {
-      setAiFeedback(`Failed to connect to AI assistant: ${err.message}`);
-    } finally {
-      setAiLoading(false);
-    }
+  const toggleHint = (idx: number) => {
+    setRevealedHints((prev) => ({
+      ...prev,
+      [idx]: !prev[idx],
+    }));
   };
 
   if (isLoading) {
@@ -154,19 +167,35 @@ export default function ProblemWorkspace() {
     );
   }
 
+  const editorial: Editorial | undefined = problem.editorial;
+  const hints: string[] = (problem.hints || []) as string[];
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 py-2 min-h-[85vh]">
-      {/* Left Column: Problem statement details */}
-      <div className="lg:col-span-5 flex flex-col space-y-6">
-        <div className="glass-panel p-6 rounded-2xl border border-border/40 flex-grow flex flex-col h-[75vh] overflow-y-auto">
+      {/* Left Column: Multi-tab Problem details */}
+      <div className="lg:col-span-5 flex flex-col space-y-4">
+        <div className="glass-panel p-6 rounded-2xl border border-border/60 flex-grow flex flex-col h-[78vh] overflow-hidden">
           {/* Header */}
-          <div className="border-b border-border/40 pb-4 mb-4">
-            <h1 className="text-2xl font-poppins font-extrabold text-white">{problem.title}</h1>
+          <div className="border-b border-border/40 pb-4 mb-3">
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-poppins font-extrabold text-white">{problem.title}</h1>
+              {problem.isVerified && (
+                <span className="inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20">
+                  <ShieldCheck className="h-3 w-3" />
+                  <span>Verified</span>
+                </span>
+              )}
+            </div>
             <div className="flex items-center space-x-3 mt-2">
-              <span className={`px-2.5 py-0.5 rounded text-xs font-semibold uppercase ${
-                problem.difficulty === 'EASY' ? 'text-success bg-success/15' :
-                problem.difficulty === 'MEDIUM' ? 'text-warning bg-warning/15' : 'text-danger bg-danger/15'
-              }`}>
+              <span
+                className={`px-2.5 py-0.5 rounded text-xs font-semibold uppercase ${
+                  problem.difficulty === 'EASY'
+                    ? 'text-success bg-success/15'
+                    : problem.difficulty === 'MEDIUM'
+                    ? 'text-warning bg-warning/15'
+                    : 'text-danger bg-danger/15'
+                }`}
+              >
                 {problem.difficulty}
               </span>
               <span className="text-xs text-accent font-semibold">{problem.points} Points</span>
@@ -174,84 +203,194 @@ export default function ProblemWorkspace() {
             </div>
           </div>
 
-          {/* Description Content */}
-          <div className="flex-grow space-y-6 text-sm text-gray-300 leading-relaxed font-light whitespace-pre-line">
-            <div>
-              <h3 className="text-xs uppercase text-gray-500 font-semibold tracking-wider mb-2">Description</h3>
-              <p className="font-poppins">{problem.description}</p>
-            </div>
-
-            <div>
-              <h3 className="text-xs uppercase text-gray-500 font-semibold tracking-wider mb-2">Constraints</h3>
-              <p className="font-mono bg-background/50 border border-border/40 p-3 rounded-lg text-gray-400">
-                {problem.constraints}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <h4 className="text-xs uppercase text-gray-500 font-semibold tracking-wider mb-1.5">Sample Input</h4>
-                <pre className="bg-background/80 border border-border/60 p-3 rounded-lg font-mono text-xs text-white overflow-x-auto">
-                  {problem.sampleInput}
-                </pre>
-              </div>
-              <div>
-                <h4 className="text-xs uppercase text-gray-500 font-semibold tracking-wider mb-1.5">Sample Output</h4>
-                <pre className="bg-background/80 border border-border/60 p-3 rounded-lg font-mono text-xs text-white overflow-x-auto">
-                  {problem.sampleOutput}
-                </pre>
-              </div>
-            </div>
+          {/* Navigation Tabs */}
+          <div className="flex items-center space-x-1 border-b border-border/40 pb-2 mb-4">
+            <button
+              onClick={() => setActiveTab('description')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition ${
+                activeTab === 'description'
+                  ? 'bg-primary/20 text-white border border-primary/40'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <FileText className="h-3.5 w-3.5" />
+              <span>Statement</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('hints')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition ${
+                activeTab === 'hints'
+                  ? 'bg-primary/20 text-white border border-primary/40'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <HelpCircle className="h-3.5 w-3.5" />
+              <span>Hints ({hints.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('editorial')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition ${
+                activeTab === 'editorial'
+                  ? 'bg-primary/20 text-white border border-primary/40'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              <span>Editorial</span>
+            </button>
           </div>
 
-          {/* AI Panel Tray */}
-          <div className="mt-8 pt-4 border-t border-border/40 space-y-4">
-            <div className="flex items-center space-x-2 text-primary">
-              <Sparkles className="h-4 w-4" />
-              <span className="text-xs font-semibold uppercase tracking-wider">AI Code Assistant</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => handleAICall('review')}
-                disabled={aiLoading}
-                className="px-3 py-1.5 bg-primary/10 border border-primary/25 hover:bg-primary/20 text-xs font-semibold rounded-lg text-white transition flex items-center space-x-1"
-              >
-                <span>Code Review</span>
-              </button>
-              <button
-                onClick={() => handleAICall('complexity')}
-                disabled={aiLoading}
-                className="px-3 py-1.5 bg-accent/10 border border-accent/25 hover:bg-accent/20 text-xs font-semibold rounded-lg text-white transition flex items-center space-x-1"
-              >
-                <span>Explain Complexity</span>
-              </button>
-              <button
-                onClick={() => handleAICall('optimize')}
-                disabled={aiLoading}
-                className="px-3 py-1.5 bg-success/10 border border-success/25 hover:bg-success/20 text-xs font-semibold rounded-lg text-white transition flex items-center space-x-1"
-              >
-                <span>Optimize Code</span>
-              </button>
-            </div>
+          {/* Tab Content Body */}
+          <div className="flex-grow overflow-y-auto pr-1 space-y-6 text-sm text-gray-300 leading-relaxed font-light">
+            {activeTab === 'description' && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-xs uppercase text-gray-500 font-semibold tracking-wider mb-2">Description</h3>
+                  <div className="whitespace-pre-line leading-relaxed text-gray-200">
+                    {problem.description}
+                  </div>
+                </div>
 
-            {aiLoading && (
-              <div className="flex items-center space-x-2 text-xs text-gray-400 py-2">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                <span>Thinking...</span>
+                {problem.inputFormat && (
+                  <div>
+                    <h3 className="text-xs uppercase text-gray-500 font-semibold tracking-wider mb-1">Input Format</h3>
+                    <p className="text-xs text-gray-400 font-mono bg-background/50 p-2.5 rounded-lg border border-border/40">
+                      {problem.inputFormat}
+                    </p>
+                  </div>
+                )}
+
+                {problem.outputFormat && (
+                  <div>
+                    <h3 className="text-xs uppercase text-gray-500 font-semibold tracking-wider mb-1">Output Format</h3>
+                    <p className="text-xs text-gray-400 font-mono bg-background/50 p-2.5 rounded-lg border border-border/40">
+                      {problem.outputFormat}
+                    </p>
+                  </div>
+                )}
+
+                {/* Sample Testcases */}
+                <div className="space-y-3">
+                  <h3 className="text-xs uppercase text-gray-500 font-semibold tracking-wider">Example Walkthrough</h3>
+                  <div className="bg-background/80 border border-border/60 rounded-xl p-4 space-y-3">
+                    <div>
+                      <span className="text-xs text-gray-500 font-semibold block mb-1">Input:</span>
+                      <pre className="bg-[#111] p-2.5 rounded-lg text-xs font-mono text-gray-300 overflow-x-auto border border-border/40">
+                        {problem.sampleInput}
+                      </pre>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-500 font-semibold block mb-1">Expected Output:</span>
+                      <pre className="bg-[#111] p-2.5 rounded-lg text-xs font-mono text-success overflow-x-auto border border-border/40">
+                        {problem.sampleOutput}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Constraints */}
+                <div>
+                  <h3 className="text-xs uppercase text-gray-500 font-semibold tracking-wider mb-2">Constraints</h3>
+                  <div className="bg-background/50 border border-border/40 p-3.5 rounded-xl font-mono text-xs text-gray-400 whitespace-pre-line">
+                    {problem.constraints}
+                  </div>
+                </div>
               </div>
             )}
 
-            {aiFeedback && (
-              <div className="bg-background/50 border border-border/60 p-4 rounded-xl text-xs text-gray-300 overflow-x-auto whitespace-pre-line font-mono max-h-48 overflow-y-auto">
-                {aiFeedback}
+            {activeTab === 'hints' && (
+              <div className="space-y-3">
+                <h3 className="text-xs uppercase text-gray-500 font-semibold tracking-wider mb-2">Step-by-Step Hints</h3>
+                {hints.length === 0 ? (
+                  <p className="text-xs text-gray-500 italic">No hints available for this problem.</p>
+                ) : (
+                  hints.map((hint, idx) => {
+                    const isRevealed = !!revealedHints[idx];
+                    return (
+                      <div key={idx} className="border border-border/60 rounded-xl overflow-hidden bg-background/60">
+                        <button
+                          onClick={() => toggleHint(idx)}
+                          className="w-full p-3.5 flex items-center justify-between text-left hover:bg-white/[0.02] transition"
+                        >
+                          <span className="text-xs font-bold text-white">Hint {idx + 1}</span>
+                          {isRevealed ? (
+                            <ChevronDown className="h-4 w-4 text-gray-400" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-gray-400" />
+                          )}
+                        </button>
+                        {isRevealed && (
+                          <div className="p-3.5 pt-0 text-xs text-gray-300 border-t border-border/30 bg-white/[0.01]">
+                            {hint}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+
+            {activeTab === 'editorial' && (
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2 text-primary text-xs font-bold">
+                  <BookOpen className="h-4 w-4" />
+                  <span>Canonical Algorithmic Editorial</span>
+                </div>
+
+                {editorial ? (
+                  <div className="space-y-4 text-xs text-gray-300">
+                    {/* Complexity Badges */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-background/80 border border-border/60 p-3 rounded-xl">
+                        <span className="text-gray-500 block text-[10px] uppercase font-bold">Time Complexity</span>
+                        <span className="text-accent font-mono font-bold text-sm">
+                          {editorial.timeComplexity || 'O(N)'}
+                        </span>
+                      </div>
+                      <div className="bg-background/80 border border-border/60 p-3 rounded-xl">
+                        <span className="text-gray-500 block text-[10px] uppercase font-bold">Space Complexity</span>
+                        <span className="text-success font-mono font-bold text-sm">
+                          {editorial.spaceComplexity || 'O(1)'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Approach & Algorithm */}
+                    {editorial.approach && (
+                      <div>
+                        <h4 className="font-bold text-white mb-1 uppercase tracking-wider text-[11px]">Core Approach</h4>
+                        <p className="bg-background/50 p-3 rounded-xl border border-border/40 leading-relaxed">
+                          {editorial.approach}
+                        </p>
+                      </div>
+                    )}
+
+                    {editorial.algorithm && (
+                      <div>
+                        <h4 className="font-bold text-white mb-1 uppercase tracking-wider text-[11px]">Algorithm Steps</h4>
+                        <pre className="bg-background/50 p-3 rounded-xl border border-border/40 whitespace-pre-line font-mono text-[11px] text-gray-300 leading-relaxed">
+                          {editorial.algorithm}
+                        </pre>
+                      </div>
+                    )}
+
+                    {/* Editorial Markdown Body */}
+                    <div className="whitespace-pre-line leading-relaxed pt-2 border-t border-border/30">
+                      {editorial.content}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500 italic">Editorial is being compiled by verified problem setters.</p>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Right Column: Code Editor & Terminal */}
-      <div className="lg:col-span-7 flex flex-col space-y-4 h-[75vh]">
+      {/* Right Column: Code Editor & Execution Terminal */}
+      <div className="lg:col-span-7 flex flex-col space-y-4 h-[78vh]">
         {/* Editor controls */}
         <div className="glass-panel p-3.5 rounded-xl border border-border/40 flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center space-x-3">
@@ -260,16 +399,16 @@ export default function ProblemWorkspace() {
               onChange={(e) => setLanguage(e.target.value)}
               className="bg-background border border-border/60 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-300 focus:outline-none"
             >
-              <option value="python">Python</option>
-              <option value="javascript">JavaScript</option>
+              <option value="python">Python 3</option>
+              <option value="javascript">JavaScript (Node.js)</option>
               <option value="typescript">TypeScript</option>
               <option value="cpp">C++ (GCC)</option>
-              <option value="java">Java</option>
+              <option value="java">Java (OpenJDK)</option>
             </select>
 
             <select
               value={fontSize}
-              onChange={(e) => setFontSize(parseInt(e.target.value))}
+              onChange={(e) => setFontSize(parseInt(e.target.value, 10))}
               className="bg-background border border-border/60 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-300 focus:outline-none"
             >
               <option value="12">12px</option>
@@ -299,83 +438,83 @@ export default function ProblemWorkspace() {
         <div className="flex-grow border border-border/40 rounded-2xl overflow-hidden bg-[#1e1e1e]">
           <Editor
             height="100%"
-            language={language === 'cpp' ? 'cpp' : language}
-            theme={theme}
+            language={language === 'c' || language === 'cpp' ? 'cpp' : language}
             value={code}
+            theme={theme}
             onChange={(val) => setCode(val || '')}
             options={{
-              fontSize: fontSize,
               minimap: { enabled: false },
+              fontSize,
+              scrollBeyondLastLine: false,
               automaticLayout: true,
               tabSize: 4,
-              cursorBlinking: 'smooth',
+              fontFamily: "'Fira Code', monospace",
             }}
           />
         </div>
 
-        {/* Terminal/Console drawer */}
+        {/* Execution Drawer / Results Bar */}
         {consoleOpen && (
-          <div className="glass-panel border border-border/60 rounded-xl overflow-hidden shadow-2xl p-4 flex flex-col space-y-3">
+          <div className="glass-panel border border-border/60 rounded-xl p-4 flex flex-col space-y-2 bg-[#0e0e0e] shadow-xl">
             <div className="flex items-center justify-between border-b border-border/40 pb-2">
-              <div className="flex items-center space-x-1.5 text-xs text-gray-300 font-semibold uppercase">
+              <div className="flex items-center space-x-2">
                 <Terminal className="h-4 w-4 text-primary" />
-                <span>Console Terminal</span>
+                <span className="text-xs font-bold text-white uppercase tracking-wider">Judging Verdict</span>
               </div>
               <button
                 onClick={() => setConsoleOpen(false)}
-                className="text-xs text-gray-400 hover:text-white"
+                className="text-xs text-gray-500 hover:text-white"
               >
-                Hide
+                Close
               </button>
             </div>
 
-            {/* Execution logs */}
-            <div className="space-y-2 text-xs font-mono">
-              {execStatus && (
-                <div className="flex items-center space-x-2 text-gray-400 py-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  <span>{execStatus}</span>
-                </div>
-              )}
+            {execStatus && (
+              <div className="flex items-center space-x-2 text-xs text-primary py-2 animate-pulse font-mono">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>{execStatus}</span>
+              </div>
+            )}
 
-              {execVerdict && (
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-2">
+            {execVerdict && (
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center space-x-3">
+                  <span
+                    className={`px-3 py-1 rounded-lg text-xs font-bold uppercase flex items-center space-x-1.5 ${
+                      execVerdict === 'ACCEPTED'
+                        ? 'bg-success/20 text-success border border-success/30'
+                        : 'bg-danger/20 text-danger border border-danger/30'
+                    }`}
+                  >
                     {execVerdict === 'ACCEPTED' ? (
-                      <span className="flex items-center space-x-1 px-2.5 py-1 bg-success/15 border border-success/30 rounded text-success font-bold text-xs uppercase">
-                        <CheckCircle2 className="h-4 w-4" />
-                        <span>Accepted</span>
-                      </span>
+                      <CheckCircle2 className="h-4 w-4" />
                     ) : (
-                      <span className="flex items-center space-x-1 px-2.5 py-1 bg-danger/15 border border-danger/30 rounded text-danger font-bold text-xs uppercase">
-                        <XCircle className="h-4 w-4" />
-                        <span>{execVerdict}</span>
-                      </span>
+                      <XCircle className="h-4 w-4" />
                     )}
+                    <span>{execVerdict}</span>
+                  </span>
 
-                    {execTime !== null && (
-                      <span className="flex items-center space-x-1 text-gray-400">
-                        <Clock className="h-3.5 w-3.5" />
-                        <span>{execTime}ms</span>
-                      </span>
-                    )}
-
-                    {execMemory !== null && (
-                      <span className="flex items-center space-x-1 text-gray-400">
-                        <Cpu className="h-3.5 w-3.5" />
-                        <span>{(execMemory / 1024).toFixed(2)}MB</span>
-                      </span>
-                    )}
-                  </div>
-
-                  {execError && (
-                    <div className="bg-red-950/30 border border-danger/20 p-3 rounded-lg text-danger max-h-40 overflow-y-auto whitespace-pre-wrap">
-                      {execError}
-                    </div>
+                  {execTime !== null && (
+                    <span className="text-xs text-gray-400 flex items-center space-x-1 font-mono">
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>{execTime}ms</span>
+                    </span>
+                  )}
+                  {execMemory !== null && (
+                    <span className="text-xs text-gray-400 flex items-center space-x-1 font-mono">
+                      <Cpu className="h-3.5 w-3.5" />
+                      <span>{execMemory}KB</span>
+                    </span>
                   )}
                 </div>
-              )}
-            </div>
+
+                {execError && (
+                  <div className="bg-danger/10 border border-danger/20 p-3 rounded-lg text-xs font-mono text-danger whitespace-pre-wrap max-h-32 overflow-y-auto">
+                    {execError}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

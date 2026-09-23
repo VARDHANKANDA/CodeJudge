@@ -7,11 +7,26 @@ export class AdminService {
   constructor(private prisma: PrismaService) {}
 
   async getMetrics() {
-    const [usersCount, problemsCount, submissionsCount, contestsCount] = await Promise.all([
+    const [
+      usersCount,
+      problemsCount,
+      submissionsCount,
+      contestsCount,
+      totalTestCases,
+      verifiedCount,
+      publishedCount,
+      draftCount,
+      reviewCount,
+    ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.problem.count(),
       this.prisma.submission.count(),
       this.prisma.contest.count(),
+      this.prisma.testCase.count(),
+      this.prisma.problem.count({ where: { isVerified: true } }),
+      this.prisma.problem.count({ where: { qualityStatus: 'PUBLISHED' } }),
+      this.prisma.problem.count({ where: { qualityStatus: 'DRAFT' } }),
+      this.prisma.problem.count({ where: { qualityStatus: 'REVIEW' } }),
     ]);
 
     const verdictGroups = await this.prisma.submission.groupBy({
@@ -31,6 +46,16 @@ export class AdminService {
       problems: problemsCount,
       submissions: submissionsCount,
       contests: contestsCount,
+      totalTestCases,
+      problemQuality: {
+        total: problemsCount,
+        verified: verifiedCount,
+        published: publishedCount,
+        draft: draftCount,
+        review: reviewCount,
+        failed: problemsCount - verifiedCount,
+        totalTestCases,
+      },
       verdictDistribution: verdicts,
     };
   }

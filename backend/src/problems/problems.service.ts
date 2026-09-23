@@ -100,6 +100,8 @@ export class ProblemsService {
       include: {
         tags: { include: { tag: true } },
         companies: { include: { company: true } },
+        editorial: true,
+        testCases: { where: { isHidden: false }, orderBy: { order: 'asc' } },
       },
     });
     if (!problem) {
@@ -114,12 +116,24 @@ export class ProblemsService {
       include: {
         tags: { include: { tag: true } },
         companies: { include: { company: true } },
+        editorial: true,
+        testCases: { where: { isHidden: false }, orderBy: { order: 'asc' } },
       },
     });
     if (!problem) {
       throw new NotFoundException('Problem not found');
     }
     return problem;
+  }
+
+  async togglePublish(id: string) {
+    const problem = await this.findOne(id);
+    return this.prisma.problem.update({
+      where: { id },
+      data: {
+        isPublished: !problem.isPublished,
+      },
+    });
   }
 
   async update(id: string, dto: CreateProblemDto) {

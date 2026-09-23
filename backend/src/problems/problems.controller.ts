@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { ProblemsService } from './problems.service';
+import { ProblemVerifierService } from './problem-verifier.service';
 import { CreateProblemDto } from './dto/create-problem.dto';
 import { CreateTestCaseDto } from './dto/create-testcase.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -11,7 +12,37 @@ import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger'
 @ApiTags('Problems')
 @Controller('problems')
 export class ProblemsController {
-  constructor(private readonly problemsService: ProblemsService) {}
+  constructor(
+    private readonly problemsService: ProblemsService,
+    private readonly problemVerifier: ProblemVerifierService,
+  ) {}
+
+  @Post(':id/verify')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.PROBLEM_SETTER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Run automated reference solution verification for a problem' })
+  async verifyProblem(@Param('id') id: string) {
+    return this.problemVerifier.verifyProblem(id);
+  }
+
+  @Post('verify-all')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Run reference verification on all problems' })
+  async verifyAll() {
+    return this.problemVerifier.verifyAllProblems();
+  }
+
+  @Patch(':id/toggle-publish')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.PROBLEM_SETTER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Toggle publish status of a problem' })
+  async togglePublish(@Param('id') id: string) {
+    return this.problemsService.togglePublish(id);
+  }
 
   @Get()
   @ApiOperation({ summary: 'Get paginated problems with filters' })
