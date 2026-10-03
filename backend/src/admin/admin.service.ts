@@ -177,5 +177,40 @@ export class AdminService {
       },
     });
   }
+
+  async runBootstrap() {
+    const { exec } = require('child_process');
+    return new Promise((resolve, reject) => {
+      exec('npx ts-node prisma/seed.ts', { cwd: process.cwd() }, (err: any, stdout: string, stderr: string) => {
+        if (err) {
+          return reject(new Error(`Seed execution failed: ${err.message}\n${stderr}`));
+        }
+        resolve({ success: true, output: stdout });
+      });
+    });
+  }
+
+  async resetUsers() {
+    await this.prisma.submission.deleteMany({});
+    await this.prisma.problemSolver.deleteMany({});
+    await this.prisma.contestRegistration.deleteMany({});
+    await this.prisma.contestLeaderboard.deleteMany({});
+    await this.prisma.globalLeaderboard.deleteMany({});
+    await this.prisma.bookmark.deleteMany({});
+    await this.prisma.like.deleteMany({});
+    await this.prisma.comment.deleteMany({});
+    await this.prisma.discussion.deleteMany({});
+    await this.prisma.notification.deleteMany({});
+    await this.prisma.userAchievement.deleteMany({});
+    await this.prisma.session.deleteMany({});
+    await this.prisma.refreshToken.deleteMany({});
+    const deleted = await this.prisma.user.deleteMany({
+      where: {
+        email: { not: 'admin@codejudge.com' },
+      },
+    });
+    return { success: true, deletedUsersCount: deleted.count };
+  }
 }
+
 

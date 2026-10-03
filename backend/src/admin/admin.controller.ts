@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param, Body, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards, Request } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -60,4 +60,17 @@ export class AdminController {
   ) {
     return this.adminService.updateUserRole(targetUserId, role, req.user.id);
   }
+
+  @Post('bootstrap-db')
+  @ApiOperation({ summary: 'Run idempotent database sync and seed (Admin only)' })
+  async bootstrapDatabase() {
+    return this.adminService.runBootstrap();
+  }
+
+  @Post('reset-users')
+  @ApiOperation({ summary: 'Reset all non-admin users and user data (Admin only)' })
+  async resetUsers() {
+    return this.adminService.resetUsers();
+  }
 }
+

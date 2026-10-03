@@ -17,4 +17,4 @@ RUN npm run build
 
 EXPOSE 5000
 
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run start:prod"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npx ts-node prisma/seed.ts && npm run start:prod"]

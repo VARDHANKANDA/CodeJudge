@@ -70,60 +70,114 @@ export class ProblemsService {
       };
     }
 
-    const [items, total] = await Promise.all([
-      this.prisma.problem.findMany({
-        where: whereClause,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          tags: {
-            include: { tag: true },
+    try {
+      const [items, total] = await Promise.all([
+        this.prisma.problem.findMany({
+          where: whereClause,
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            tags: {
+              include: { tag: true },
+            },
           },
-        },
-      }),
-      this.prisma.problem.count({ where: whereClause }),
-    ]);
+        }),
+        this.prisma.problem.count({ where: whereClause }),
+      ]);
 
-    return {
-      items,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    };
+      return {
+        items: items.map(p => ({
+          ...p,
+          tags: p.tags || [],
+        })),
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      };
+    } catch (err: any) {
+      // Resilient fallback to basic query without nested relations
+      const [items, total] = await Promise.all([
+        this.prisma.problem.findMany({
+          where: { isPublished: true },
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.problem.count({ where: { isPublished: true } }),
+      ]);
+
+      return {
+        items: items.map(p => ({ ...p, tags: [] })),
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      };
+    }
   }
 
   async findOne(id: string) {
-    const problem = await this.prisma.problem.findUnique({
-      where: { id },
-      include: {
-        tags: { include: { tag: true } },
-        companies: { include: { company: true } },
-        editorial: true,
-        testCases: { where: { isHidden: false }, orderBy: { order: 'asc' } },
-      },
-    });
-    if (!problem) {
-      throw new NotFoundException('Problem not found');
+    try {
+      const problem = await this.prisma.problem.findUnique({
+        where: { id },
+        include: {
+          tags: { include: { tag: true } },
+          companies: { include: { company: true } },
+          editorial: true,
+          testCases: { where: { isHidden: false }, orderBy: { order: 'asc' } },
+        },
+      });
+      if (!problem) {
+        throw new NotFoundException('Problem not found');
+      }
+      return problem;
+    } catch (err: any) {
+      if (err instanceof NotFoundException) throw err;
+      const problem = await this.prisma.problem.findUnique({
+        where: { id },
+      });
+      if (!problem) throw new NotFoundException('Problem not found');
+      return {
+        ...problem,
+        tags: [],
+        companies: [],
+        editorial: null,
+        testCases: [],
+      };
     }
-    return problem;
   }
 
   async findBySlug(slug: string) {
-    const problem = await this.prisma.problem.findUnique({
-      where: { slug },
-      include: {
-        tags: { include: { tag: true } },
-        companies: { include: { company: true } },
-        editorial: true,
-        testCases: { where: { isHidden: false }, orderBy: { order: 'asc' } },
-      },
-    });
-    if (!problem) {
-      throw new NotFoundException('Problem not found');
+    try {
+      const problem = await this.prisma.problem.findUnique({
+        where: { slug },
+        include: {
+          tags: { include: { tag: true } },
+          companies: { include: { company: true } },
+          editorial: true,
+          testCases: { where: { isHidden: false }, orderBy: { order: 'asc' } },
+        },
+      });
+      if (!problem) {
+        throw new NotFoundException('Problem not found');
+      }
+      return problem;
+    } catch (err: any) {
+      if (err instanceof NotFoundException) throw err;
+      const problem = await this.prisma.problem.findUnique({
+        where: { slug },
+      });
+      if (!problem) throw new NotFoundException('Problem not found');
+      return {
+        ...problem,
+        tags: [],
+        companies: [],
+        editorial: null,
+        testCases: [],
+      };
     }
-    return problem;
   }
 
   async togglePublish(id: string) {

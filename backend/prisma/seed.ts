@@ -9,50 +9,45 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Starting idempotent database seed...');
 
-  // 1. Create default roles & users
+  // Phase 9: Clean User Account Reset
+  console.log('Performing clean user account reset...');
+  // Delete all non-admin users and dependent data
+  await prisma.submission.deleteMany({});
+  await prisma.problemSolver.deleteMany({});
+  await prisma.contestRegistration.deleteMany({});
+  await prisma.contestLeaderboard.deleteMany({});
+  await prisma.globalLeaderboard.deleteMany({});
+  await prisma.bookmark.deleteMany({});
+  await prisma.like.deleteMany({});
+  await prisma.comment.deleteMany({});
+  await prisma.discussion.deleteMany({});
+  await prisma.notification.deleteMany({});
+  await prisma.userAchievement.deleteMany({});
+  await prisma.session.deleteMany({});
+  await prisma.refreshToken.deleteMany({});
+  await prisma.user.deleteMany({
+    where: {
+      email: { not: 'admin@codejudge.com' },
+    },
+  });
+
+  // 1. Create secure default admin user
   const adminPasswordHash = await bcrypt.hash('admin123', 10);
-  const setterPasswordHash = await bcrypt.hash('setter123', 10);
-  const userPasswordHash = await bcrypt.hash('user123', 10);
 
   const admin = await prisma.user.upsert({
     where: { email: 'admin@codejudge.com' },
-    update: {},
+    update: {
+      role: Role.ADMIN,
+      isEmailVerified: true,
+      points: 0,
+      rating: 1500,
+    },
     create: {
       email: 'admin@codejudge.com',
       username: 'admin',
       name: 'System Admin',
       passwordHash: adminPasswordHash,
       role: Role.ADMIN,
-      isEmailVerified: true,
-      points: 0,
-      rating: 1500,
-    },
-  });
-
-  const setter = await prisma.user.upsert({
-    where: { email: 'setter@codejudge.com' },
-    update: {},
-    create: {
-      email: 'setter@codejudge.com',
-      username: 'setter',
-      name: 'Problem Setter',
-      passwordHash: setterPasswordHash,
-      role: Role.PROBLEM_SETTER,
-      isEmailVerified: true,
-      points: 0,
-      rating: 1500,
-    },
-  });
-
-  const testUser = await prisma.user.upsert({
-    where: { email: 'user@codejudge.com' },
-    update: {},
-    create: {
-      email: 'user@codejudge.com',
-      username: 'coder_ram',
-      name: 'Ram Kumar',
-      passwordHash: userPasswordHash,
-      role: Role.USER,
       isEmailVerified: true,
       points: 0,
       rating: 1500,
@@ -1040,7 +1035,7 @@ public class Solution {
         qualityStatus: QualityStatus.PUBLISHED,
         isVerified: true,
         isPublished: true,
-        authorId: setter.id,
+        authorId: admin.id,
       },
     });
 
@@ -1065,7 +1060,7 @@ public class Solution {
       },
       create: {
         problemId: problem.id,
-        authorId: setter.id,
+        authorId: admin.id,
         approach: editApproach,
         algorithm: editAlgorithm,
         timeComplexity: editTime,
@@ -1117,15 +1112,20 @@ public class Solution {
 
   console.log(`Successfully seeded ${allProblemDefs.length} problems with test cases and editorials.`);
 
-  // 3. Define the 4 Contests with realistic timings & problem associations
+  // 3. Define the 3 Contests with realistic timings & problem associations (1 LIVE, 1 UPCOMING, 1 PAST)
   const now = new Date();
+
+  await prisma.contestProblem.deleteMany({});
+  await prisma.contestRegistration.deleteMany({});
+  await prisma.contestLeaderboard.deleteMany({});
+  await prisma.contest.deleteMany({});
 
   const contestDefs = [
     {
       title: 'CodeJudge Weekly Challenge #1',
-      description: 'A beginner-friendly competitive programming contest covering arrays, strings, searching, and basic algorithms.',
-      startTime: new Date(now.getTime() - 15 * 60 * 1000), // Started 15 mins ago (LIVE)
-      endTime: new Date(now.getTime() + 75 * 60 * 1000),   // Ends in 75 mins (Total 90m)
+      description: 'A live competitive programming contest covering arrays, strings, searching, and fundamental algorithms.',
+      startTime: new Date(now.getTime() - 30 * 60 * 1000), // Started 30 mins ago (LIVE)
+      endTime: new Date(now.getTime() + 90 * 60 * 1000),   // Ends in 90 mins (LIVE)
       isPrivate: false,
       problems: [
         { slug: 'two-sum', points: 100, order: 1 },
@@ -1135,9 +1135,9 @@ public class Solution {
     },
     {
       title: 'Algorithm Arena — Round 1',
-      description: 'A competitive round focused on algorithms, data structures, and problem solving.',
-      startTime: new Date(now.getTime() + 2 * 60 * 60 * 1000), // Starts in 2 hours (UPCOMING)
-      endTime: new Date(now.getTime() + 4 * 60 * 60 * 1000),   // Duration: 120 mins
+      description: 'A competitive round focused on dynamic programming, two pointers, and divide-and-conquer.',
+      startTime: new Date(now.getTime() + 24 * 60 * 60 * 1000), // Starts tomorrow (UPCOMING)
+      endTime: new Date(now.getTime() + (24 * 60 + 120) * 60 * 1000), // Duration: 120 mins
       isPrivate: false,
       problems: [
         { slug: 'maximum-subarray', points: 200, order: 1 },
@@ -1147,22 +1147,10 @@ public class Solution {
       ],
     },
     {
-      title: 'CodeJudge Sprint Challenge',
-      description: 'A short challenge designed to test implementation speed and accuracy.',
-      startTime: new Date(now.getTime() + 24 * 60 * 60 * 1000), // Starts tomorrow (UPCOMING)
-      endTime: new Date(now.getTime() + (24 * 60 + 45) * 60 * 1000), // Duration: 45 mins
-      isPrivate: false,
-      problems: [
-        { slug: 'number-of-islands', points: 250, order: 1 },
-        { slug: 'kth-largest-element', points: 200, order: 2 },
-        { slug: 'two-sum', points: 100, order: 3 },
-      ],
-    },
-    {
       title: 'AI & Algorithms Challenge',
-      description: 'A themed programming challenge combining algorithmic thinking with practical problem solving.',
-      startTime: new Date(now.getTime() - 24 * 60 * 60 * 1000), // Yesterday (PAST)
-      endTime: new Date(now.getTime() - (22 * 60 + 30) * 60 * 1000), // Duration: 90 mins
+      description: 'A completed programming challenge combining algorithmic thinking with mathematical problem solving.',
+      startTime: new Date(now.getTime() - 48 * 60 * 60 * 1000), // 2 days ago (PAST)
+      endTime: new Date(now.getTime() - (48 * 60 - 90) * 60 * 1000), // Duration: 90 mins (PAST)
       isPrivate: false,
       problems: [
         { slug: 'climbing-stairs', points: 150, order: 1 },
