@@ -40,9 +40,11 @@ export class CreateProblemDto {
 
   @ApiProperty({
     example: { python: 'def twoSum(nums, target):\n    pass', cpp: 'class Solution {\npublic:\n    vector<int> twoSum(vector<int>& nums, int target) {\n        \n    }\n};' },
-    description: 'Code templates by language'
+    description: 'Code templates by language',
+    required: false,
   })
-  codeTemplates!: any;
+  @IsOptional()
+  codeTemplates?: any;
 
   @ApiProperty({ example: '[2,7,11,15]\n9', description: 'Sample standard input' })
   @IsString()

@@ -181,7 +181,7 @@ export class AdminService {
   async runBootstrap() {
     const { exec } = require('child_process');
     return new Promise((resolve, reject) => {
-      exec('npx ts-node prisma/seed.ts', { cwd: process.cwd() }, (err: any, stdout: string, stderr: string) => {
+      exec('npx prisma db push --accept-data-loss && npx ts-node prisma/seed.ts', { cwd: process.cwd() }, (err: any, stdout: string, stderr: string) => {
         if (err) {
           return reject(new Error(`Seed execution failed: ${err.message}\n${stderr}`));
         }
